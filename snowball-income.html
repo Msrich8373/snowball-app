@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Snowball Income — трекер дивидендов</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❄️</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    :root {
+      --green: #16a37f;
+      --green-light: #e6f7f2;
+      --green-mid: #9fe1cb;
+      --amber: #f59e0b;
+      --amber-light: #fef3c7;
+      --red: #ef4444;
+      --red-light: #fee2e2;
+      --blue: #3b82f6;
+      --blue-light: #eff6ff;
+      --bg: #f5f5f3;
+      --surface: #ffffff;
+      --surface2: #f9f9f7;
+      --border: rgba(0,0,0,0.08);
+      --text: #111110;
+      --text-muted: #6b6b67;
+      --text-hint: #a1a19d;
+      --radius: 14px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111110;
+        --surface: #1c1c1a;
+        --surface2: #252522;
+        --border: rgba(255,255,255,0.08);
+        --text: #f0f0ee;
+        --text-muted: #9a9a96;
+        --text-hint: #5a5a56;
+        --green-light: rgba(22,163,127,0.15);
+        --amber-light: rgba(245,158,11,0.15);
+        --red-light: rgba(239,68,68,0.15);
+        --blue-light: rgba(59,130,246,0.15);
+        --shadow: 0 1px 3px rgba(0,0,0,0.3);
+        --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); }
+    #app { max-width: 430px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); position: relative; }
+
+    /* HEADER */
+    .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 52px 20px 0; position: sticky; top: 0; z-index: 100; }
+    .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .portfolio-btn { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 500; color: var(--text); cursor: pointer; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 6px 12px; transition: background .15s; }
+    .portfolio-btn:active { background: var(--border); }
+    .portfolio-btn svg { width: 14px; height: 14px; color: var(--text-muted); }
+    .header-actions { display: flex; gap: 8px; }
+    .icon-btn { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); transition: all .15s; }
+    .icon-btn:active { background: var(--border); }
+    .icon-btn svg { width: 18px; height: 18px; }
+
+    /* TABS */
+    .tabs { display: flex; overflow-x: auto; scrollbar-width: none; gap: 4px; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab { padding: 12px 16px; font-size: 13px; font-weight: 400; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; transition: all .15s; }
+    .tab.active { color: var(--green); border-bottom-color: var(--green); font-weight: 500; }
+
+    /* CONTENT */
+    .content { flex: 1; overflow-y: auto; padding-bottom: 90px; }
+    .page { display: none; padding: 16px; gap: 12px; flex-direction: column; }
+    .page.active { display: flex; }
+
+    /* CARDS */
+    .card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px; box-shadow: var(--shadow); }
+    .card-title { font-size: 11px; font-weight: 500; color: var(--text-hint); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px; }
+
+    /* HERO */
+    .hero { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 24px 20px 20px; text-align: center; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+    .hero::before { content: ''; position: absolute; top: -40px; right: -40px; width: 120px; height: 120px; border-radius: 50%; background: var(--green-light); }
+    .hero-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; position: relative; }
+    .hero-value { font-size: 38px; font-weight: 600; letter-spacing: -1px; color: var(--text); font-family: 'DM Mono', monospace; position: relative; }
+    .hero-change { font-size: 13px; color: var(--green); margin-top: 6px; position: relative; }
+    .hero-change.neg { color: var(--red); }
+
+    /* METRICS GRID */
+    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric { background: var(--surface); border-radius: var(--radius-sm); border: 1px solid var(--border); padding: 14px; box-shadow: var(--shadow); }
+    .metric-label { font-size: 11px; color: var(--text-hint); margin-bottom: 6px; }
+    .metric-value { font-size: 22px; font-weight: 600; font-family: 'DM Mono', monospace; letter-spacing: -.5px; }
+    .metric-sub { font-size: 11px; color: var(--green); margin-top: 3px; }
+    .metric-sub.neg { color: var(--red); }
+    .metric-sub.muted { color: var(--text-muted); }
+
+    /* BADGES */
+    .badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+    .badge.pos { background: var(--green-light); color: var(--green); }
+    .badge.neg { background: var(--red-light); color: var(--red); }
+    .badge.est { background: var(--amber-light); color: var(--amber); }
+
+    /* MOVERS */
+    .movers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .mover { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 12px; border: 1px solid var(--border); }
+    .mover-header { font-size: 10px; color: var(--text-hint); margin-bottom: 8px; font-weight: 500; text-transform: uppercase; letter-spacing: .5px; }
+    .mover-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+    .mover-ticker { font-size: 13px; font-weight: 500; font-family: 'DM Mono', monospace; }
+    .mover-pct { font-size: 12px; font-weight: 500; }
+
+    /* ASSET LIST */
+    .search-wrap { position: relative; }
+    .search-wrap svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--text-hint); }
+    .search-input { width: 100%; padding: 10px 12px 10px 36px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--text); outline: none; transition: border .15s; }
+    .search-input:focus { border-color: var(--green); }
+    .sort-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+    .sort-row::-webkit-scrollbar { display: none; }
+    .sort-chip { padding: 5px 12px; border-radius: 20px; font-size: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; white-space: nowrap; transition: all .15s; font-family: 'DM Sans', sans-serif; }
+    .sort-chip.active { background: var(--green); color: white; border-color: var(--green); }
+    .asset-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: opacity .15s; }
+    .asset-item:active { opacity: .7; }
+    .asset-item:last-child { border-bottom: none; }
+    .asset-logo { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0; font-family: 'DM Mono', monospace; }
+    .asset-info { flex: 1; min-width: 0; }
+    .asset-ticker { font-size: 14px; font-weight: 500; font-family: 'DM Mono', monospace; }
+    .asset-name { font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .asset-right { text-align: right; }
+    .asset-value { font-size: 14px; font-weight: 500; font-family: 'DM Mono', monospace; }
+    .asset-pnl { font-size: 12px; margin-top: 2px; }
+
+    /* CALENDAR */
+    .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .month-nav-btn { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 1px solid var(--border); background: var(--surface2); transition: all .15s; }
+    .month-nav-btn:active { background: var(--border); }
+    .month-nav-btn svg { width: 16px; height: 16px; color: var(--text-muted); }
+    .month-title { font-size: 16px; font-weight: 500; }
+    .cal-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .cal-stat { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px; text-align: center; border: 1px solid var(--border); }
+    .cal-stat-label { font-size: 10px; color: var(--text-hint); margin-bottom: 4px; }
+    .cal-stat-value { font-size: 15px; font-weight: 600; font-family: 'DM Mono', monospace; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+    .cal-head { font-size: 10px; color: var(--text-hint); text-align: center; padding: 4px 0; font-weight: 500; }
+    .cal-day { font-size: 12px; text-align: center; padding: 7px 2px; border-radius: 6px; cursor: pointer; transition: background .1s; }
+    .cal-day.has-div { background: var(--green-light); color: var(--green); font-weight: 600; }
+    .cal-day.today { background: var(--green); color: white; font-weight: 600; }
+    .cal-day.empty { color: var(--text-hint); }
+    .div-event { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .div-event:last-child { border-bottom: none; }
+    .div-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .div-event-info { flex: 1; }
+    .div-event-ticker { font-size: 13px; font-weight: 500; font-family: 'DM Mono', monospace; }
+    .div-event-date { font-size: 11px; color: var(--text-muted); }
+    .div-event-amount { font-size: 14px; font-weight: 600; font-family: 'DM Mono', monospace; }
+
+    /* GOAL */
+    .goal-progress { background: var(--surface2); border-radius: 6px; height: 8px; overflow: hidden; margin: 10px 0 6px; border: 1px solid var(--border); }
+    .goal-fill { height: 100%; background: linear-gradient(90deg, var(--green), #22d3ae); border-radius: 6px; transition: width .6s ease; }
+    .goal-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); }
+
+    /* ANALYTICS */
+    .analytics-chart { position: relative; width: 100%; height: 200px; }
+    .chart-160 { position: relative; width: 100%; height: 160px; }
+    .legend-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+    /* BOTTOM NAV */
+    .nav-bar { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 430px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; padding: 8px 0 24px; z-index: 200; box-shadow: 0 -4px 20px rgba(0,0,0,0.06); }
+    .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px; cursor: pointer; color: var(--text-hint); font-size: 10px; transition: color .15s; }
+    .nav-item.active { color: var(--green); }
+    .nav-item svg { width: 22px; height: 22px; }
+    .nav-center { flex: 1; display: flex; justify-content: center; }
+    .fab { width: 52px; height: 52px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 16px rgba(22,163,127,0.45); margin-top: -18px; transition: transform .15s; border: none; }
+    .fab:active { transform: scale(0.94); }
+    .fab svg { width: 24px; height: 24px; color: white; }
+
+    /* MODAL */
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 300; align-items: flex-end; max-width: 430px; left: 50%; transform: translateX(-50%); }
+    .modal-bg.open { display: flex; }
+    .modal { background: var(--surface); border-radius: 20px 20px 0 0; padding: 20px; width: 100%; max-height: 80vh; overflow-y: auto; }
+    .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 16px; }
+    .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 16px; }
+    .modal-item { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .modal-item:last-child { border-bottom: none; }
+    .modal-item-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--green-light); display: flex; align-items: center; justify-content: center; }
+    .modal-item-icon svg { width: 20px; height: 20px; color: var(--green); }
+    .modal-item-text { flex: 1; }
+    .modal-item-label { font-size: 14px; font-weight: 500; }
+    .modal-item-desc { font-size: 12px; color: var(--text-muted); }
+
+    /* ADD FORM */
+    .form-group { margin-bottom: 14px; }
+    .form-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; display: block; font-weight: 500; }
+    .form-input { width: 100%; padding: 11px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--text); outline: none; transition: border .15s; }
+    .form-input:focus { border-color: var(--green); }
+    .btn-primary { width: 100%; padding: 13px; background: var(--green); color: white; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 500; font-family: 'DM Sans', sans-serif; cursor: pointer; transition: opacity .15s; margin-top: 8px; }
+    .btn-primary:active { opacity: .8; }
+
+    .chart-legend-line { display: flex; gap: 14px; font-size: 11px; margin-top: 8px; flex-wrap: wrap; }
+    .cll-item { display: flex; align-items: center; gap: 4px; color: var(--text-muted); }
+    .cll-line { width: 20px; height: 2px; border-radius: 1px; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .page.active { animation: fadeIn .2s ease; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="header-top">
+      <div class="portfolio-btn" onclick="showPortfolioModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+        <span id="port-name">Мой портфель</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="header-actions">
+        <div class="icon-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </div>
+        <div class="icon-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        </div>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchPage('home',this)">Главная</div>
+      <div class="tab" onclick="switchPage('portfolio',this)">Портфель</div>
+      <div class="tab" onclick="switchPage('calendar',this)">Календарь</div>
+      <div class="tab" onclick="switchPage('analytics',this)">Аналитика</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- HOME PAGE -->
+    <div id="page-home" class="page active">
+      <div class="hero">
+        <div class="hero-label">Стоимость портфеля</div>
+        <div class="hero-value" id="hero-val">$48 320</div>
+        <div class="hero-change" id="hero-change">▲ +$1 240 (+2.64%) сегодня</div>
+      </div>
+
+      <div class="metrics-grid">
+        <div class="metric">
+          <div class="metric-label">Прибыль</div>
+          <div class="metric-value" style="color:var(--green)">$8 450</div>
+          <div class="metric-sub">+21.2% за всё время</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Пассивный доход</div>
+          <div class="metric-value">$2 160</div>
+          <div class="metric-sub">в год (4.5%)</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">IRR</div>
+          <div class="metric-value">14.8%</div>
+          <div class="metric-sub muted">годовых</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Вложено</div>
+          <div class="metric-value">$39 870</div>
+          <div class="metric-sub muted">суммарно</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Дивиденды по годам</div>
+        <div style="position:relative;width:100%;height:160px;">
+          <canvas id="divChart" role="img" aria-label="Дивиденды 2021-2025">Дивиденды: 2021 $320, 2022 $680, 2023 $1100, 2024 $1750, 2025 $2160.</canvas>
+        </div>
+        <div class="chart-legend-line">
+          <div class="cll-item"><div class="cll-line" style="background:var(--green)"></div>Получено</div>
+          <div class="cll-item"><div class="cll-line" style="background:var(--green-mid)"></div>Прогноз</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Лидеры и аутсайдеры дня</div>
+        <div class="movers-grid">
+          <div class="mover">
+            <div class="mover-header">▲ Лидеры</div>
+            <div class="mover-item"><span class="mover-ticker">NVDA</span><span class="mover-pct" style="color:var(--green)">+3.8%</span></div>
+            <div class="mover-item"><span class="mover-ticker">MSFT</span><span class="mover-pct" style="color:var(--green)">+2.1%</span></div>
+            <div class="mover-item"><span class="mover-ticker">AAPL</span><span class="mover-pct" style="color:var(--green)">+1.4%</span></div>
+          </div>
+          <div class="mover">
+            <div class="mover-header">▼ Аутсайдеры</div>
+            <div class="mover-item"><span class="mover-ticker">XOM</span><span class="mover-pct" style="color:var(--red)">-1.4%</span></div>
+            <div class="mover-item"><span class="mover-ticker">PFE</span><span class="mover-pct" style="color:var(--red)">-0.9%</span></div>
+            <div class="mover-item"><span class="mover-ticker">KO</span><span class="mover-pct" style="color:var(--red)">-0.3%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+          <div class="card-title" style="margin:0">Цель: $100 000</div>
+          <span class="badge pos">48%</span>
+        </div>
+        <div class="goal-progress"><div class="goal-fill" style="width:48%"></div></div>
+        <div class="goal-labels"><span>Текущий: $48 320</span><span>Цель: $100 000</span></div>
+        <div style="position:relative;width:100%;height:130px;margin-top:14px;">
+          <canvas id="goalChart" role="img" aria-label="Прогноз достижения цели">Прогноз к 2028 году.</canvas>
+        </div>
+        <div class="chart-legend-line">
+          <div class="cll-item"><div class="cll-line" style="background:var(--green)"></div>С пополнением</div>
+          <div class="cll-item"><div class="cll-line" style="background:var(--amber);border-top:2px dashed var(--amber);height:0"></div>Только дивиденды</div>
+          <div class="cll-item"><div class="cll-line" style="background:var(--red)"></div>Без пополнений</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Ближайшие выплаты</div>
+        <div id="upcoming-divs"></div>
+      </div>
+    </div>
+
+    <!-- PORTFOLIO PAGE -->
+    <div id="page-portfolio" class="page">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="search-input" placeholder="Поиск по тикеру или названию..." id="search-q" oninput="renderAssets()">
+      </div>
+      <div class="sort-row">
+        <div class="sort-chip active" onclick="setSort('value',this)">По стоимости</div>
+        <div class="sort-chip" onclick="setSort('profit',this)">По прибыли</div>
+        <div class="sort-chip" onclick="setSort('yield',this)">По доходности</div>
+        <div class="sort-chip" onclick="setSort('name',this)">По имени</div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div id="assets-list"></div>
+      </div>
+    </div>
+
+    <!-- CALENDAR PAGE -->
+    <div id="page-calendar" class="page">
+      <div class="card">
+        <div class="month-nav">
+          <div class="month-nav-btn" onclick="changeMonth(-1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </div>
+          <div class="month-title" id="cal-title">Май 2026</div>
+          <div class="month-nav-btn" onclick="changeMonth(1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+        </div>
+        <div class="cal-stats">
+          <div class="cal-stat"><div class="cal-stat-label">Получено</div><div class="cal-stat-value" style="color:var(--green)" id="cal-received">$51.30</div></div>
+          <div class="cal-stat"><div class="cal-stat-label">Ожидается</div><div class="cal-stat-value" style="color:var(--amber)" id="cal-expected">$22.00</div></div>
+          <div class="cal-stat"><div class="cal-stat-label">Итого</div><div class="cal-stat-value" id="cal-total">$73.30</div></div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Выплаты в этом месяце</div>
+        <div id="cal-events"></div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS PAGE -->
+    <div id="page-analytics" class="page">
+      <div class="card">
+        <div class="card-title">Структура портфеля</div>
+        <div class="analytics-chart">
+          <canvas id="pieChart" role="img" aria-label="Распределение по секторам">Технологии 42%, Здравоохранение 18%, Потребители 15%, Энергетика 12%, Прочее 13%.</canvas>
+        </div>
+        <div class="legend-row">
+          <div class="legend-item"><div class="legend-dot" style="background:#16a37f"></div>Технологии 42%</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Здравоохранение 18%</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Потребители 15%</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Энергетика 12%</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#a1a19d"></div>Прочее 13%</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Рост дивидендов по кварталам</div>
+        <div class="chart-160">
+          <canvas id="growthChart" role="img" aria-label="Рост дивидендов по кварталам">Квартальные дивиденды 2024–2025.</canvas>
+        </div>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric">
+          <div class="metric-label">Доходность</div>
+          <div class="metric-value">4.5%</div>
+          <div class="metric-sub muted">на дивиденды</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Sharpe ratio</div>
+          <div class="metric-value">1.34</div>
+          <div class="metric-sub">выше нормы</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">vs S&P 500</div>
+          <div class="metric-value" style="color:var(--green)">+3.2%</div>
+          <div class="metric-sub">лучше индекса</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Комиссии</div>
+          <div class="metric-value">$124</div>
+          <div class="metric-sub muted">за всё время</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Диверсификация по странам</div>
+        <div id="countries-list"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- NAV -->
+  <div class="nav-bar">
+    <div class="nav-item active" id="nav-home" onclick="switchPage('home',null,'home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span>Главная</span>
+    </div>
+    <div class="nav-item" id="nav-portfolio" onclick="switchPage('portfolio',null,'portfolio')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+      <span>Портфель</span>
+    </div>
+    <div class="nav-center">
+      <button class="fab" onclick="showAddModal()" aria-label="Добавить">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+    <div class="nav-item" id="nav-calendar" onclick="switchPage('calendar',null,'calendar')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span>Календарь</span>
+    </div>
+    <div class="nav-item" id="nav-analytics" onclick="switchPage('analytics',null,'analytics')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <span>Аналитика</span>
+    </div>
+  </div>
+
+  <!-- ADD MODAL -->
+  <div class="modal-bg" id="add-modal" onclick="closeModal('add-modal')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Добавить</div>
+      <div class="modal-item" onclick="showAddAssetForm()">
+        <div class="modal-item-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="modal-item-text">
+          <div class="modal-item-label">Актив / сделка</div>
+          <div class="modal-item-desc">Акция, ETF, облигация</div>
+        </div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--text-hint)"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+      <div class="modal-item" onclick="showDivForm()">
+        <div class="modal-item-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div class="modal-item-text">
+          <div class="modal-item-label">Доход</div>
+          <div class="modal-item-desc">Дивиденды, купоны, проценты</div>
+        </div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--text-hint)"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+      <div class="modal-item" onclick="closeModal('add-modal')">
+        <div class="modal-item-icon" style="background:var(--blue-light)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--blue)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <div class="modal-item-text">
+          <div class="modal-item-label">Загрузить отчёт брокера</div>
+          <div class="modal-item-desc">Поддерживается 30+ брокеров</div>
+        </div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--text-hint)"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD ASSET FORM MODAL -->
+  <div class="modal-bg" id="asset-form-modal" onclick="closeModal('asset-form-modal')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Добавить актив</div>
+      <div class="form-group">
+        <label class="form-label">Тикер</label>
+        <input class="form-input" id="f-ticker" placeholder="Например: AAPL">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Кол-во акций</label>
+        <input class="form-input" id="f-qty" type="number" placeholder="10">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Цена покупки ($)</label>
+        <input class="form-input" id="f-price" type="number" placeholder="185.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Дата</label>
+        <input class="form-input" id="f-date" type="date">
+      </div>
+      <button class="btn-primary" onclick="addAsset()">Добавить</button>
+    </div>
+  </div>
+
+  <!-- PORTFOLIO SELECT MODAL -->
+  <div class="modal-bg" id="port-modal" onclick="closeModal('port-modal')">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-handle"></div>
+      <div class="modal-title">Портфели</div>
+      <div id="port-list"></div>
+      <button class="btn-primary" onclick="addPortfolio()" style="margin-top:16px">+ Новый портфель</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ASSETS = [
+  { ticker:'AAPL', name:'Apple Inc.', value:12400, invested:9800, profit:2600, yield:0.6, color:'#16a37f' },
+  { ticker:'MSFT', name:'Microsoft Corp.', value:10200, invested:8500, profit:1700, yield:0.8, color:'#3b82f6' },
+  { ticker:'NVDA', name:'NVIDIA Corp.', value:8900, invested:5200, profit:3700, yield:0.1, color:'#7c3aed' },
+  { ticker:'JNJ',  name:'Johnson & Johnson', value:6800, invested:6200, profit:600, yield:3.2, color:'#f59e0b' },
+  { ticker:'KO',   name:'Coca-Cola Co.', value:4800, invested:4100, profit:700, yield:3.1, color:'#ef4444' },
+  { ticker:'XOM',  name:'ExxonMobil Corp.', value:5220, invested:5800, profit:-580, yield:3.6, color:'#6b7280' },
+];
+
+const PORTFOLIOS = [
+  { name:'Мой портфель', active:true },
+  { name:'ИИС', active:false },
+  { name:'Пенсионный', active:false },
+];
+
+const DIVS = [
+  { ticker:'AAPL', date:'28 мая', amount:12.40, status:'received', dot:'#16a37f' },
+  { ticker:'MSFT', date:'14 мая', amount:38.90, status:'received', dot:'#16a37f' },
+  { ticker:'JNJ',  date:'3 июня', amount:29.50, status:'declared', dot:'#16a37f' },
+  { ticker:'KO',   date:'~15 июня', amount:22.00, status:'estimated', dot:'#f59e0b' },
+];
+
+const COUNTRIES = [
+  { name:'США', pct:72, color:'#16a37f' },
+  { name:'Европа', pct:14, color:'#3b82f6' },
+  { name:'Азия', pct:8, color:'#f59e0b' },
+  { name:'Другое', pct:6, color:'#a1a19d' },
+];
+
+let currentSort = 'value';
+let calMonth = 4;
+let calYear = 2026;
+const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const divDays = { 4:[14,28], 5:[3,15] };
+
+const isDark = matchMedia('(prefers-color-scheme:dark)').matches;
+const gridC = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+const textC = isDark ? '#9a9a96' : '#6b6b67';
+
+function switchPage(id, tabEl, navId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if(tabEl) tabEl.classList.add('active');
+  else {
+    const tabs = ['home','portfolio','calendar','analytics'];
+    document.querySelectorAll('.tab')[tabs.indexOf(id)]?.classList.add('active');
+  }
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if(navId) document.getElementById('nav-'+navId)?.classList.add('active');
+  if(id==='portfolio') renderAssets();
+  if(id==='calendar') renderCalendar();
+  if(id==='analytics') initAnalyticsCharts();
+  if(id==='home') renderUpcoming();
+}
+
+function renderAssets() {
+  const q = (document.getElementById('search-q')?.value || '').toLowerCase();
+  let list = ASSETS.filter(a => !q || a.ticker.toLowerCase().includes(q) || a.name.toLowerCase().includes(q));
+  if(currentSort==='value') list.sort((a,b)=>b.value-a.value);
+  else if(currentSort==='profit') list.sort((a,b)=>b.profit-a.profit);
+  else if(currentSort==='yield') list.sort((a,b)=>b.yield-a.yield);
+  else list.sort((a,b)=>a.ticker.localeCompare(b.ticker));
+  document.getElementById('assets-list').innerHTML = list.map(a => {
+    const pos = a.profit >= 0;
+    const pct = ((Math.abs(a.profit)/a.invested)*100).toFixed(1);
+    return `<div class="asset-item">
+      <div class="asset-logo" style="background:${a.color}22;color:${a.color}">${a.ticker.slice(0,2)}</div>
+      <div class="asset-info">
+        <div class="asset-ticker">${a.ticker}</div>
+        <div class="asset-name">${a.name}</div>
+        <span class="badge ${pos?'pos':'neg'}" style="margin-top:3px;font-size:10px">div ${a.yield}%</span>
+      </div>
+      <div class="asset-right">
+        <div class="asset-value">$${a.value.toLocaleString()}</div>
+        <div class="asset-pnl" style="color:${pos?'var(--green)':'var(--red)'}">${pos?'+':'-'}$${Math.abs(a.profit).toLocaleString()} (${pos?'+':'-'}${pct}%)</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setSort(key, el) {
+  currentSort = key;
+  document.querySelectorAll('.sort-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  renderAssets();
+}
+
+function renderCalendar() {
+  document.getElementById('cal-title').textContent = monthNames[calMonth]+' '+calYear;
+  const first = new Date(calYear, calMonth, 1).getDay();
+  const total = new Date(calYear, calMonth+1, 0).getDate();
+  const offset = first===0 ? 6 : first-1;
+  const today = new Date();
+  const todayD = today.getDate(), todayM = today.getMonth(), todayY = today.getFullYear();
+  const marked = divDays[calMonth]||[];
+  const days = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  let html = days.map(d=>`<div class="cal-head">${d}</div>`).join('');
+  for(let i=0;i<offset;i++) html+=`<div class="cal-day empty"></div>`;
+  for(let d=1;d<=total;d++) {
+    const isToday = d===todayD&&calMonth===todayM&&calYear===todayY;
+    const hasDiv = marked.includes(d);
+    let cls = 'cal-day';
+    if(isToday) cls+=' today';
+    else if(hasDiv) cls+=' has-div';
+    html+=`<div class="${cls}">${d}</div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+
+  const events = DIVS.filter((_,i)=>i<3);
+  document.getElementById('cal-events').innerHTML = events.map(e=>`
+    <div class="div-event">
+      <div class="div-dot" style="background:${e.dot}"></div>
+      <div class="div-event-info">
+        <div class="div-event-ticker">${e.ticker} ${e.status==='estimated'?'<span style="font-size:10px;color:var(--text-hint)">прогноз</span>':''}</div>
+        <div class="div-event-date">${e.date} • ${e.status==='received'?'получено':e.status==='declared'?'объявлено':'прогноз'}</div>
+      </div>
+      <div class="div-event-amount" style="color:${e.dot}">$${e.amount.toFixed(2)}</div>
+    </div>`).join('');
+}
+
+function changeMonth(dir) {
+  calMonth+=dir;
+  if(calMonth<0){calMonth=11;calYear--;}
+  if(calMonth>11){calMonth=0;calYear++;}
+  renderCalendar();
+}
+
+function renderUpcoming() {
+  document.getElementById('upcoming-divs').innerHTML = DIVS.map(e=>`
+    <div class="div-event">
+      <div class="div-dot" style="background:${e.dot}"></div>
+      <div class="div-event-info">
+        <div class="div-event-ticker">${e.ticker}</div>
+        <div class="div-event-date">${e.date}</div>
+      </div>
+      <div class="div-event-amount" style="color:${e.dot}">$${e.amount.toFixed(2)}</div>
+    </div>`).join('');
+}
+
+function renderCountries() {
+  document.getElementById('countries-list').innerHTML = COUNTRIES.map(c=>`
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+        <span>${c.name}</span><span style="color:var(--text-muted);font-family:'DM Mono',monospace">${c.pct}%</span>
+      </div>
+      <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;border:1px solid var(--border)">
+        <div style="width:${c.pct}%;height:100%;background:${c.color};border-radius:4px;transition:width .6s ease"></div>
+      </div>
+    </div>`).join('');
+}
+
+let chartsInited = false;
+function initAnalyticsCharts() {
+  if(chartsInited) return;
+  chartsInited = true;
+  renderCountries();
+  new Chart(document.getElementById('pieChart'),{
+    type:'doughnut',
+    data:{labels:['Технологии','Здравоохранение','Потребители','Энергетика','Прочее'],datasets:[{data:[42,18,15,12,13],backgroundColor:['#16a37f','#3b82f6','#f59e0b','#ef4444','#a1a19d'],borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'64%',plugins:{legend:{display:false}}}
+  });
+  new Chart(document.getElementById('growthChart'),{
+    type:'bar',
+    data:{labels:['Q1 24','Q2 24','Q3 24','Q4 24','Q1 25','Q2 25','Q3 25','Q4 25'],datasets:[{label:'Дивиденды',data:[380,420,460,490,510,540,570,600],backgroundColor:'#16a37f',borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:textC,font:{size:10},autoSkip:false,maxRotation:0}},y:{grid:{color:gridC},ticks:{color:textC,font:{size:10},callback:v=>'$'+v}}}}
+  });
+}
+
+function showAddModal() { document.getElementById('add-modal').classList.add('open'); }
+function showAddAssetForm() { closeModal('add-modal'); setTimeout(()=>document.getElementById('asset-form-modal').classList.add('open'),100); }
+function showDivForm() { closeModal('add-modal'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function addAsset() {
+  const ticker = document.getElementById('f-ticker').value.toUpperCase().trim();
+  const qty = parseFloat(document.getElementById('f-qty').value);
+  const price = parseFloat(document.getElementById('f-price').value);
+  if(!ticker||!qty||!price) { alert('Заполните все поля'); return; }
+  const colors = ['#16a37f','#3b82f6','#7c3aed','#f59e0b','#ef4444'];
+  ASSETS.push({ ticker, name:ticker+' Corp.', value:qty*price, invested:qty*price, profit:0, yield:0, color:colors[ASSETS.length%colors.length] });
+  closeModal('asset-form-modal');
+  renderAssets();
+  ['f-ticker','f-qty','f-price','f-date'].forEach(id=>document.getElementById(id).value='');
+}
+
+function showPortfolioModal() {
+  document.getElementById('port-list').innerHTML = PORTFOLIOS.map((p,i)=>`
+    <div class="modal-item" onclick="selectPortfolio(${i})">
+      <div class="modal-item-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
+      <div class="modal-item-text"><div class="modal-item-label">${p.name}</div></div>
+      ${p.active?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg>':''}
+    </div>`).join('');
+  document.getElementById('port-modal').classList.add('open');
+}
+
+function selectPortfolio(i) {
+  PORTFOLIOS.forEach(p=>p.active=false);
+  PORTFOLIOS[i].active=true;
+  document.getElementById('port-name').textContent=PORTFOLIOS[i].name;
+  closeModal('port-modal');
+}
+
+function addPortfolio() {
+  const name = prompt('Название нового портфеля:');
+  if(name) { PORTFOLIOS.push({name,active:false}); }
+  closeModal('port-modal');
+}
+
+// Init home charts after page loads
+window.addEventListener('load', () => {
+  renderUpcoming();
+  new Chart(document.getElementById('divChart'),{
+    type:'bar',
+    data:{labels:['2021','2022','2023','2024','2025*'],datasets:[
+      {label:'Получено',data:[320,680,1100,1750,1200],backgroundColor:'#16a37f',borderRadius:5},
+      {label:'Прогноз',data:[0,0,0,0,960],backgroundColor:'#9fe1cb',borderRadius:5}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{stacked:true,grid:{display:false},ticks:{color:textC,font:{size:11}}},y:{stacked:true,grid:{color:gridC},ticks:{color:textC,font:{size:11},callback:v=>'$'+v}}}}
+  });
+  new Chart(document.getElementById('goalChart'),{
+    type:'line',
+    data:{labels:['2024','2025','2026','2027','2028','2029'],datasets:[
+      {label:'С пополнением',data:[40000,48320,58000,70000,84000,100000],borderColor:'#16a37f',backgroundColor:'rgba(22,163,127,0.08)',fill:true,tension:.4,pointRadius:3,borderWidth:2},
+      {label:'Только дивиденды',data:[40000,42000,44100,46300,48600,51100],borderColor:'#f59e0b',borderDash:[5,5],fill:false,tension:.4,pointRadius:0,borderWidth:1.5},
+      {label:'Без пополнений',data:[40000,41500,43100,44800,46600,48500],borderColor:'#ef4444',fill:false,tension:.4,pointRadius:0,borderWidth:1.5}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:textC,font:{size:10}}},y:{grid:{color:gridC},ticks:{color:textC,font:{size:10},callback:v=>'$'+(v/1000).toFixed(0)+'k'}}}}
+  });
+});
+</script>
+</body>
+</html>
